@@ -5,3 +5,4 @@ char* elasticSearchHost;
 char* elasticSearchApiKey;
 char* elasticSearchIndex;
 int elasticSearchReportInterval;
+int elasticSearchPort;

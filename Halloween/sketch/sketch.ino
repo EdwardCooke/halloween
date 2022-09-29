@@ -55,30 +55,34 @@ void loop()
     trigger(distanceInch, distanceCm);
     triggeredAt = millis();
   }
-  else {
+  else
+  {
     sendData(false, distanceInch, distanceCm);
   }
   delay(50);
 }
 
-void configurePins() {
+void configurePins()
+{
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(relayPin, OUTPUT);
   pinMode(sonarTriggerPin, OUTPUT); // Sets the trigPin as an Output
-  pinMode(sonarEchoPin, INPUT);  // Sets the echoPin as an Input
+  pinMode(sonarEchoPin, INPUT);     // Sets the echoPin as an Input
 }
 
-void configureWiFi() {
+void configureWiFi()
+{
   WiFi.hostname(hostname);
   WiFi.begin(wifiSSID, wifiPassword);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
 
   Serial.println("");
-  Serial.println("WiFi connected");  
+  Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   Serial.print("dnsIP: ");
@@ -89,20 +93,13 @@ void configureWiFi() {
   Serial.println(WiFi.getHostname());
   Serial.print("macAddress: ");
   Serial.println(WiFi.macAddress());
-
-  Serial.print("connecting to " + (String)elasticSearchHost);
-  Serial.println();
-  if (!client.connect(elasticSearchHost, 9200))
-  {
-    Serial.println("connection failed");
-    return;
-  }
 }
 
 void sendData(bool fromTrigger, float distanceInch, float distanceCentimeter)
 {
   uint32_t now = millis();
-  if (fromTrigger || now - dataLastSent > elasticSearchReportInterval) {
+  if (fromTrigger || now - dataLastSent > elasticSearchReportInterval)
+  {
     String state;
     String body = "{ \"state\": ";
     body += toString(isTriggered);
@@ -115,28 +112,56 @@ void sendData(bool fromTrigger, float distanceInch, float distanceCentimeter)
     body += distanceCentimeter;
     body += "}";
     int length = body.length();
-#if LOG_ELASTIC_REQUEST
-    Serial.println(body);
-#endif
-    client.print(String("POST ") + "/" + elasticSearchIndex + "/_doc HTTP/1.1\r\n" +
-                "Host: " + elasticSearchHost + "\r\n" +
-                "Authorization: ApiKey " + elasticSearchApiKey + "\r\n" +
-                "Content-Type: application/json\r\n" +
-                "Content-Length: " + length + "\r\n\r\n" +
-                body);
 
-#if LOG_ELASTIC_RESULT
+
+    if (!client.connected())
+    {
+      Serial.println("Client is disconnected");
+      Serial.println("Stopping the client");
+      client.stop();
+      Serial.println("Reconnecting");
+      if (!client.connect(elasticSearchHost, elasticSearchPort))
+      {
+        Serial.println("connection failed");
+        return;
+      }
+      Serial.println("Connected");
+    }
+
+    String headers = String("POST ") + "/" + elasticSearchIndex + "/_doc HTTP/1.1\r\n" +
+                 "Host: " + elasticSearchHost + "\r\n" +
+                 "Authorization: ApiKey " + elasticSearchApiKey + "\r\n" +
+                 "Content-Type: application/json\r\n" +
+                 "Content-Length: " + length + "\r\n\r\n";
+    String message = headers + body;
+#if LOG_ELASTIC_REQUEST
+    Serial.println(message);
+#endif
+    size_t size = client.print(message);
+#if LOG_ELASTIC_REQUEST
+    Serial.print("** Bytes Sent: ");
+    Serial.println(size);
+#endif
+
     // wait for something to come back from elastic.
-    while (!client.available()){
+    while (!client.available())
+    {
       delay(1);
     }
 
+#if LOG_ELASTIC_RESULT
     while (client.available())
     {
       String line = client.readStringUntil('\r');
       Serial.print(line);
     }
     Serial.println();
+#else
+    // empty the bytes received buffer
+    char buffer[1];
+    while (client.available()) {
+      client.readBytes(buffer, 1);
+    }
 #endif
 
     dataLastSent = millis();
@@ -163,8 +188,10 @@ void untrigger(float distanceInch, float distanceCentimeter)
   sendData(true, distanceInch, distanceCentimeter);
 }
 
-String toString(boolean value) {
-  if (value == true) {
+String toString(boolean value)
+{
+  if (value == true)
+  {
     return "true";
   }
   return "false";

@@ -126,12 +126,17 @@ void sendData(bool fromTrigger, float distanceInch, float distanceCentimeter)
                 body);
 
 #if LOG_ELASTIC_RESULT
+    // wait for something to come back from elastic.
+    while (!client.available()){
+      delay(1);
+    }
+
     while (client.available())
     {
       String line = client.readStringUntil('\r');
       Serial.print(line);
-      Serial.println();
     }
+    Serial.println();
 #endif
 
     dataLastSent = millis();

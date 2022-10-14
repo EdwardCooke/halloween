@@ -10,12 +10,11 @@ const int relayTriggerTime = 250;
 const int minDistanceInch = 12;
 const int maxDistanceInch = 240;
 const int gracePeriod = 10 * 1000; // 10 seconds
+const int disablePin = 14;
 #pragma endregion
 
 #define SOUND_SPEED 0.034
 #define CM_TO_INCH 0.393701
-#define LOG_ELASTIC_RESULT false
-#define LOG_ELASTIC_REQUEST true
 
 WiFiClient client;
 bool isTriggered;
@@ -25,22 +24,48 @@ long duration;
 float distanceCm;
 float distanceInch;
 uint32_t dataLastSent;
+bool disableButtonPressed;
+bool disabled;
+int lastDisableButtonStateChangeMillis;
 
 void setup()
 {
   configurePins();
   Serial.begin(115200); // Starts the serial communication
   configureWiFi();
+  disableButtonPressed = false;
+  disabled = false;
 }
 
 void loop()
 {
+  bool wasDisableButtonPressed = disableButtonPressed;
+
+  if (digitalRead(disablePin) == HIGH) {
+    disableButtonPressed = true;
+  }
+  else {
+    disableButtonPressed = false;
+  }
+
+  if (wasDisableButtonPressed && !disableButtonPressed) {
+    Serial.println("Disable button released");
+    disabled = !disabled;
+    if (disabled) {
+      digitalWrite(LED_BUILTIN, LOW);
+    }
+    else { 
+      triggeredAt = 0;
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+  }
+
   digitalWrite(sonarTriggerPin, LOW);
   delayMicroseconds(2);
   digitalWrite(sonarTriggerPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(sonarTriggerPin, LOW);
-
+  
   // Reads the echoPin, returns the sound wave travel time in microseconds
   duration = pulseIn(sonarEchoPin, HIGH);
 
@@ -50,7 +75,7 @@ void loop()
   // Convert to inches
   distanceInch = distanceCm * CM_TO_INCH;
 
-  if ((distanceInch < minDistanceInch || distanceInch > maxDistanceInch) && (millis() - triggeredAt > gracePeriod))
+  if (!disabled && (distanceInch < minDistanceInch || distanceInch > maxDistanceInch) && (millis() - triggeredAt > gracePeriod))
   {
     trigger(distanceInch, distanceCm);
     triggeredAt = millis();
@@ -65,9 +90,12 @@ void loop()
 void configurePins()
 {
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
   pinMode(relayPin, OUTPUT);
   pinMode(sonarTriggerPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(sonarEchoPin, INPUT);     // Sets the echoPin as an Input
+  digitalWrite(disablePin, LOW); // pull the pin low, the button will pull it high
+  pinMode(disablePin, INPUT);
 }
 
 void configureWiFi()
@@ -172,7 +200,7 @@ void trigger(float distanceInch, float distanceCentimeter)
 {
   Serial.println("****** triggered");
   isTriggered = true;
-  digitalWrite(LED_BUILTIN, HIGH);
+  // digitalWrite(LED_BUILTIN, HIGH);
   digitalWrite(relayPin, HIGH);
   sendData(true, distanceInch, distanceCentimeter);
   delay(relayTriggerTime);
@@ -183,7 +211,7 @@ void untrigger(float distanceInch, float distanceCentimeter)
 {
   Serial.println("------ no longer triggered");
   isTriggered = false;
-  digitalWrite(LED_BUILTIN, LOW);
+  // digitalWrite(LED_BUILTIN, LOW);
   digitalWrite(relayPin, LOW);
   sendData(true, distanceInch, distanceCentimeter);
 }

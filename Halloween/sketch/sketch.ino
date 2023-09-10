@@ -94,8 +94,9 @@ void configurePins()
   pinMode(relayPin, OUTPUT);
   pinMode(sonarTriggerPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(sonarEchoPin, INPUT);     // Sets the echoPin as an Input
-  digitalWrite(disablePin, LOW); // pull the pin low, the button will pull it high
-  pinMode(disablePin, INPUT);
+  // pinMode(disablePin, OUTPUT);
+  // digitalWrite(disablePin, LOW); // pull the pin low, the button will pull it high
+  pinMode(disablePin, INPUT_PULLDOWN);
 }
 
 void configureWiFi()
